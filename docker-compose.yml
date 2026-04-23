@@ -1,0 +1,143 @@
+# =============================================================================
+# ConstrutorPro - Docker Compose Configuration
+# Production-ready container orchestration
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Application Service
+  # ============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: construtor-pro-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_ENDPOINT=${LOG_ENDPOINT:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - construtor-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ============================================================================
+  # PostgreSQL Database
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: construtor-pro-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${DB_USER:-construtor}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-construtor_secret}
+      - POSTGRES_DB=${DB_NAME:-construtor_pro}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./prisma/indexes-performance.sql:/docker-entrypoint-initdb.d/01-indexes.sql:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - construtor-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-construtor} -d ${DB_NAME:-construtor_pro}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ============================================================================
+  # Redis Cache
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: construtor-pro-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - construtor-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # ============================================================================
+  # Nginx Reverse Proxy (Optional - for SSL termination)
+  # ============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: construtor-pro-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - construtor-network
+    profiles:
+      - production
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+networks:
+  construtor-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

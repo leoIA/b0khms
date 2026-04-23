@@ -1,0 +1,1 @@
+{"compilerOptions":{"exclude":["node_modules","examples","prisma/seed.ts","prisma/seed-sinapi.ts"]}}
