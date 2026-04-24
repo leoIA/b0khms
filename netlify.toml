@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+  
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
+  PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING = "1"
+  NETLIFY = "true"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  included_files = ["node_modules/.prisma/**", "node_modules/@prisma/client/**", "prisma/**"]
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

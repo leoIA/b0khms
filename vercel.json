@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron?job=backup-full&secret=${CRON_SECRET}",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron?job=backup-wal&secret=${CRON_SECRET}",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron?job=backup-cleanup&secret=${CRON_SECRET}",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron?job=test-backups&secret=${CRON_SECRET}",
+      "schedule": "0 4 * * 0"
+    }
+  ]
+}

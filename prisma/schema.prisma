@@ -1,0 +1,2368 @@
+// =============================================================================
+// ConstrutorPro - Schema Prisma (PostgreSQL)
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model accounts {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  users             users   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model activities {
+  id         String    @id @default(cuid())
+  companyId  String
+  userId     String
+  userName   String
+  action     String
+  entityType String
+  entityId   String
+  entityName String?
+  details    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
+  users      users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies  companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([companyId])
+}
+
+// =============================================================================
+// Audit Logs - Security and Compliance Event Tracking
+// =============================================================================
+
+model audit_logs {
+  id           String   @id @default(cuid())
+  companyId    String?
+  userId       String?
+  // Action details
+  action       String // login, logout, password_change, 2fa_enable, user_create, etc.
+  category     String // authentication, authorization, data_access, data_modification, system
+  severity     String // info, warning, critical
+  // Resource details
+  resourceType String? // user, project, budget, company, etc.
+  resourceId   String? // ID of the affected resource
+  resourceName String? // Name/title for display
+  // Request context
+  ipAddress    String?
+  userAgent    String?
+  device       String?
+  browser      String?
+  os           String?
+  location     String? // City/Country from IP
+  // Change tracking
+  oldValue     String? // JSON of old value (for updates)
+  newValue     String? // JSON of new value (for updates)
+  // Status and details
+  status       String   @default("success") // success, failure, blocked
+  errorMessage String?
+  metadata     String? // Additional JSON data
+  // Timestamps
+  createdAt    DateTime @default(now())
+
+  users     users?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  companies companies? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([companyId])
+  @@index([action])
+  @@index([category])
+  @@index([severity])
+  @@index([status])
+  @@index([resourceType, resourceId])
+}
+
+model actual_costs {
+  id           String        @id @default(cuid())
+  companyId    String
+  projectId    String
+  budgetItemId String?
+  description  String
+  value        Decimal
+  date         DateTime
+  category     String?
+  notes        String?
+  documentRef  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  budget_items budget_items? @relation(fields: [budgetItemId], references: [id])
+  projects     projects      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companies    companies     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([budgetItemId])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model ai_conversations {
+  id          String        @id @default(cuid())
+  companyId   String
+  userId      String
+  title       String
+  context     String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  users       users         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies   companies     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ai_messages ai_messages[]
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+model ai_messages {
+  id               String           @id @default(cuid())
+  conversationId   String
+  role             String
+  content          String
+  tokens           Int?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  ai_conversations ai_conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([conversationId])
+}
+
+model alerts {
+  id         String    @id @default(cuid())
+  companyId  String
+  type       String
+  title      String
+  message    String
+  entityType String?
+  entityId   String?
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
+  companies  companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([isRead])
+  @@index([companyId])
+}
+
+model budget_items {
+  id                String              @id @default(cuid())
+  budgetId          String
+  compositionId     String?
+  description       String
+  unit              String
+  quantity          Decimal
+  unitPrice         Decimal
+  totalPrice        Decimal
+  notes             String?
+  order             Int                 @default(0)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @default(now()) @updatedAt
+  actualQuantity    Decimal?
+  actualTotal       Decimal?
+  actual_costs      actual_costs[]
+  compositions      compositions?       @relation(fields: [compositionId], references: [id])
+  budgets           budgets             @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  task_budget_links task_budget_links[]
+
+  @@index([compositionId])
+  @@index([budgetId])
+}
+
+model budget_template_items {
+  id               String           @id @default(cuid())
+  templateId       String
+  compositionId    String?
+  description      String
+  unit             String
+  quantity         Decimal          @default(1)
+  unitPrice        Decimal          @default(0)
+  notes            String?
+  order            Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @default(now()) @updatedAt
+  compositions     compositions?    @relation(fields: [compositionId], references: [id])
+  budget_templates budget_templates @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([compositionId])
+  @@index([templateId])
+}
+
+model budget_templates {
+  id                    String                  @id @default(cuid())
+  companyId             String
+  name                  String
+  code                  String?
+  description           String?
+  category              String?
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  budget_template_items budget_template_items[]
+  companies             companies               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([isActive])
+  @@index([companyId])
+}
+
+model budgets {
+  id           String         @id @default(cuid())
+  companyId    String
+  projectId    String?
+  name         String
+  code         String?
+  description  String?
+  status       String         @default("draft")
+  totalValue   Decimal        @default(0)
+  discount     Decimal?
+  validUntil   DateTime?
+  approvedAt   DateTime?
+  approvedBy   String?
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  budget_items budget_items[]
+  users        users?         @relation(fields: [approvedBy], references: [id])
+  projects     projects?      @relation(fields: [projectId], references: [id])
+  companies    companies      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  proposals    proposals[]
+
+  @@unique([companyId, code])
+  @@index([projectId])
+  @@index([status])
+  @@index([companyId])
+}
+
+model clients {
+  id           String         @id @default(cuid())
+  companyId    String
+  name         String
+  email        String?
+  phone        String?
+  mobile       String?
+  cpfCnpj      String?
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  notes        String?
+  status       String         @default("active")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  companies    companies      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projects     projects[]
+  transactions transactions[]
+  proposals    proposals[]
+
+  @@unique([companyId, cpfCnpj])
+  @@index([name])
+  @@index([companyId])
+}
+
+model companies {
+  id                       String                     @id @default(cuid())
+  name                     String
+  tradingName              String?
+  cnpj                     String                     @unique
+  email                    String
+  phone                    String?
+  address                  String?
+  city                     String?
+  state                    String?
+  zipCode                  String?
+  logo                     String?
+  plan                     String                     @default("trial")
+  planExpiresAt            DateTime?
+  isActive                 Boolean                    @default(true)
+  // Campos de assinatura
+  trialEndsAt              DateTime?
+  subscriptionStatus       String?                    @default("trial") // trial, active, past_due, canceled, expired
+  subscriptionId           String? // ID da assinatura no gateway
+  customerId               String? // ID do cliente no gateway (Mercado Pago)
+  paymentMethod            String? // credit_card, pix, boleto
+  lastPaymentAt            DateTime?
+  nextPaymentAt            DateTime?
+  canceledAt               DateTime?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  activities               activities[]
+  actual_costs             actual_costs[]
+  ai_conversations         ai_conversations[]
+  alerts                   alerts[]
+  audit_logs               audit_logs[]
+  budget_templates         budget_templates[]
+  budgets                  budgets[]
+  clients                  clients[]
+  compositions             compositions[]
+  daily_logs               daily_logs[]
+  invoices                 invoices[]
+  materials                materials[]
+  medicoes                 medicoes[]
+  notification_preferences notification_preferences[]
+  notification_queue       notification_queue[]
+  notification_history     notification_history[]
+  projects                 projects[]
+  purchase_orders          purchase_orders[]
+  quotations               quotations[]
+  schedules                schedules[]
+  subscriptions_history    subscriptions_history[]
+  suppliers                suppliers[]
+  transactions             transactions[]
+  users                    users[]
+  webhooks                 webhooks[]
+  custom_reports           custom_reports[]
+  report_schedules         report_schedules[]
+  report_executions        report_executions[]
+  dashboard_widgets        dashboard_widgets[]
+  approval_workflows       approval_workflows[]
+  approval_requests        approval_requests[]
+  approval_delegations     approval_delegations[]
+  backup_schedules         backup_schedules[]
+  backup_history           backup_history[]
+  proposals                proposals[]
+  proposal_templates       proposal_templates[]
+  proposal_followups       proposal_followups[]
+  // RH - Recursos Humanos
+  employees                employees[]
+  employee_documents       employee_documents[]
+  employee_benefits        employee_benefits[]
+  employee_vacations       employee_vacations[]
+  employee_leaves          employee_leaves[]
+  time_records             time_records[]
+  payrolls                 payrolls[]
+  payroll_items            payroll_items[]
+
+  @@index([isActive])
+  @@index([cnpj])
+  @@index([subscriptionStatus])
+}
+
+model composition_items {
+  id            String       @id @default(cuid())
+  compositionId String
+  materialId    String?
+  description   String
+  unit          String
+  quantity      Decimal
+  unitCost      Decimal
+  totalCost     Decimal
+  coefficient   Float?
+  itemType      String       @default("material")
+  order         Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  materials     materials?   @relation(fields: [materialId], references: [id])
+  compositions  compositions @relation(fields: [compositionId], references: [id], onDelete: Cascade)
+
+  @@index([materialId])
+  @@index([compositionId])
+}
+
+model compositions {
+  id                    String                  @id @default(cuid())
+  companyId             String
+  code                  String
+  name                  String
+  description           String?
+  unit                  String
+  totalCost             Decimal                 @default(0)
+  totalPrice            Decimal                 @default(0)
+  profitMargin          Float                   @default(30)
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  budget_items          budget_items[]
+  budget_template_items budget_template_items[]
+  composition_items     composition_items[]
+  companies             companies               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  medicao_items         medicao_items[]
+
+  @@unique([companyId, code])
+  @@index([isActive])
+  @@index([companyId])
+}
+
+model daily_log_activities {
+  id           String     @id @default(cuid())
+  dailyLogId   String
+  description  String
+  location     String?
+  workersCount Int?
+  startTime    String?
+  endTime      String?
+  observations String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now()) @updatedAt
+  daily_logs   daily_logs @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+
+  @@index([dailyLogId])
+}
+
+model daily_log_photos {
+  id          String     @id @default(cuid())
+  dailyLogId  String
+  url         String
+  description String?
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  daily_logs  daily_logs @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+
+  @@index([dailyLogId])
+}
+
+model daily_logs {
+  id                   String                 @id @default(cuid())
+  companyId            String
+  projectId            String
+  date                 DateTime
+  weather              String                 @default("sunny")
+  temperatureMin       Float?
+  temperatureMax       Float?
+  workStartTime        String?
+  workEndTime          String?
+  workersCount         Int?
+  summary              String
+  observations         String?
+  incidents            String?
+  visitors             String?
+  createdBy            String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  daily_log_activities daily_log_activities[]
+  daily_log_photos     daily_log_photos[]
+  users                users                  @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  projects             projects               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companies            companies              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, date])
+  @@index([date])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model materials {
+  id                   String                 @id @default(cuid())
+  companyId            String
+  code                 String
+  name                 String
+  description          String?
+  unit                 String
+  unitCost             Decimal                @default(0)
+  unitPrice            Decimal?
+  supplierId           String?
+  stockQuantity        Decimal?
+  minStock             Decimal?
+  category             String?
+  isActive             Boolean                @default(true)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  composition_items    composition_items[]
+  purchase_order_items purchase_order_items[]
+  suppliers            suppliers?             @relation(fields: [supplierId], references: [id])
+  companies            companies              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([supplierId])
+  @@index([isActive])
+  @@index([companyId])
+}
+
+model medicao_items {
+  id            String        @id @default(cuid())
+  medicaoId     String
+  composicaoId  String?
+  descricao     String
+  unidade       String
+  quantidade    Decimal
+  quantidadeAnt Decimal       @default(0)
+  valorUnitario Decimal
+  valorTotal    Decimal
+  observacao    String?
+  ordem         Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
+  compositions  compositions? @relation(fields: [composicaoId], references: [id])
+  medicoes      medicoes      @relation(fields: [medicaoId], references: [id], onDelete: Cascade)
+
+  @@index([composicaoId])
+  @@index([medicaoId])
+}
+
+model medicoes {
+  id                                String          @id @default(cuid())
+  companyId                         String
+  projectId                         String
+  numero                            Int             @default(1)
+  dataInicio                        DateTime
+  dataFim                           DateTime
+  valorTotal                        Decimal         @default(0)
+  status                            String          @default("rascunho")
+  observacoes                       String?
+  criadoPor                         String
+  aprovadoPor                       String?
+  aprovadoEm                        DateTime?
+  createdAt                         DateTime        @default(now())
+  updatedAt                         DateTime        @updatedAt
+  medicao_items                     medicao_items[]
+  users_medicoes_aprovadoPorTousers users?          @relation("medicoes_aprovadoPorTousers", fields: [aprovadoPor], references: [id])
+  users_medicoes_criadoPorTousers   users           @relation("medicoes_criadoPorTousers", fields: [criadoPor], references: [id], onDelete: Cascade)
+  projects                          projects        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companies                         companies       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, numero])
+  @@index([dataInicio])
+  @@index([status])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model password_reset_tokens {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([email])
+}
+
+model projects {
+  id                String            @id @default(cuid())
+  companyId         String
+  clientId          String?
+  name              String
+  code              String?
+  description       String?
+  address           String?
+  city              String?
+  state             String?
+  status            String            @default("planning")
+  startDate         DateTime?
+  endDate           DateTime?
+  estimatedValue    Decimal           @default(0)
+  actualValue       Decimal           @default(0)
+  physicalProgress  Float             @default(0)
+  financialProgress Float             @default(0)
+  managerId         String?
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  actual_costs      actual_costs[]
+  budgets           budgets[]
+  daily_logs        daily_logs[]
+  medicoes          medicoes[]
+  purchase_orders   purchase_orders[]
+  users             users?            @relation(fields: [managerId], references: [id])
+  clients           clients?          @relation(fields: [clientId], references: [id])
+  companies         companies         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quotations        quotations[]
+  schedules         schedules[]
+  transactions      transactions[]
+  proposals         proposals[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([clientId])
+  @@index([status])
+  @@index([companyId])
+}
+
+model quotation_items {
+  id                       String                     @id @default(cuid())
+  quotationId              String
+  description              String
+  unit                     String
+  quantity                 Decimal
+  notes                    String?
+  order                    Int                        @default(0)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @default(now()) @updatedAt
+  quotations               quotations                 @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  quotation_response_items quotation_response_items[]
+
+  @@index([quotationId])
+}
+
+model quotation_response_items {
+  id                  String              @id @default(cuid())
+  quotationResponseId String
+  quotationItemId     String
+  unitPrice           Decimal?
+  totalPrice          Decimal?
+  notes               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @default(now()) @updatedAt
+  quotation_items     quotation_items     @relation(fields: [quotationItemId], references: [id], onDelete: Cascade)
+  quotation_responses quotation_responses @relation(fields: [quotationResponseId], references: [id], onDelete: Cascade)
+
+  @@index([quotationItemId])
+  @@index([quotationResponseId])
+}
+
+model quotation_responses {
+  id                       String                     @id @default(cuid())
+  quotationId              String
+  supplierId               String
+  status                   String                     @default("pending")
+  notes                    String?
+  validUntil               DateTime?
+  totalValue               Decimal?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  quotation_response_items quotation_response_items[]
+  suppliers                suppliers                  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  quotations               quotations                 @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@unique([quotationId, supplierId])
+  @@index([status])
+  @@index([supplierId])
+  @@index([quotationId])
+}
+
+model quotations {
+  id                  String                @id @default(cuid())
+  companyId           String
+  projectId           String?
+  name                String
+  code                String?
+  description         String?
+  status              String                @default("draft")
+  deadline            DateTime?
+  notes               String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  quotation_items     quotation_items[]
+  quotation_responses quotation_responses[]
+  projects            projects?             @relation(fields: [projectId], references: [id])
+  companies           companies             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([projectId])
+  @@index([status])
+  @@index([companyId])
+}
+
+model schedule_task_dependencies {
+  id                                                                    String         @id @default(cuid())
+  taskId                                                                String
+  dependsOnId                                                           String
+  schedule_tasks_schedule_task_dependencies_dependsOnIdToschedule_tasks schedule_tasks @relation("schedule_task_dependencies_dependsOnIdToschedule_tasks", fields: [dependsOnId], references: [id], onDelete: Cascade)
+  schedule_tasks_schedule_task_dependencies_taskIdToschedule_tasks      schedule_tasks @relation("schedule_task_dependencies_taskIdToschedule_tasks", fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnId])
+}
+
+model schedule_tasks {
+  id                                                                                String                       @id @default(cuid())
+  scheduleId                                                                        String
+  parentId                                                                          String?
+  name                                                                              String
+  description                                                                       String?
+  startDate                                                                         DateTime
+  endDate                                                                           DateTime
+  duration                                                                          Int                          @default(0)
+  progress                                                                          Float                        @default(0)
+  status                                                                            String                       @default("pending")
+  responsible                                                                       String?
+  order                                                                             Int                          @default(0)
+  createdAt                                                                         DateTime                     @default(now())
+  updatedAt                                                                         DateTime                     @updatedAt
+  financialProgress                                                                 Float?
+  physicalProgress                                                                  Float?
+  schedule_task_dependencies_schedule_task_dependencies_dependsOnIdToschedule_tasks schedule_task_dependencies[] @relation("schedule_task_dependencies_dependsOnIdToschedule_tasks")
+  schedule_task_dependencies_schedule_task_dependencies_taskIdToschedule_tasks      schedule_task_dependencies[] @relation("schedule_task_dependencies_taskIdToschedule_tasks")
+  schedule_tasks                                                                    schedule_tasks?              @relation("schedule_tasksToschedule_tasks", fields: [parentId], references: [id])
+  other_schedule_tasks                                                              schedule_tasks[]             @relation("schedule_tasksToschedule_tasks")
+  schedules                                                                         schedules                    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  task_budget_links                                                                 task_budget_links[]
+
+  @@index([status])
+  @@index([parentId])
+  @@index([scheduleId])
+}
+
+model schedules {
+  id             String           @id @default(cuid())
+  companyId      String
+  projectId      String
+  name           String
+  description    String?
+  startDate      DateTime
+  endDate        DateTime
+  status         String           @default("pending")
+  progress       Float            @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  schedule_tasks schedule_tasks[]
+  projects       projects         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companies      companies        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model sessions {
+  id           String    @id @default(cuid())
+  sessionToken String    @unique
+  userId       String
+  expires      DateTime
+  // Session tracking for security
+  ipAddress    String?
+  userAgent    String?
+  device       String? // Parsed device info
+  browser      String? // Parsed browser info
+  os           String? // Parsed OS info
+  location     String? // City/Country if available
+  lastActive   DateTime? @default(now())
+  createdAt    DateTime  @default(now())
+  users        users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
+}
+
+model suppliers {
+  id                  String                @id @default(cuid())
+  companyId           String
+  name                String
+  tradeName           String?
+  cnpj                String?
+  email               String?
+  phone               String?
+  mobile              String?
+  address             String?
+  city                String?
+  state               String?
+  zipCode             String?
+  contactPerson       String?
+  category            String?
+  notes               String?
+  status              String                @default("active")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  materials           materials[]
+  purchase_orders     purchase_orders[]
+  quotation_responses quotation_responses[]
+  companies           companies             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions        transactions[]
+
+  @@unique([companyId, cnpj])
+  @@index([name])
+  @@index([companyId])
+}
+
+model task_budget_links {
+  id             String         @id @default(cuid())
+  taskId         String
+  budgetItemId   String
+  percentage     Float          @default(100)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  budget_items   budget_items   @relation(fields: [budgetItemId], references: [id], onDelete: Cascade)
+  schedule_tasks schedule_tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, budgetItemId])
+  @@index([budgetItemId])
+  @@index([taskId])
+}
+
+model transactions {
+  id             String     @id @default(cuid())
+  companyId      String
+  projectId      String?
+  type           String
+  category       String
+  description    String
+  value          Decimal
+  date           DateTime
+  dueDate        DateTime?
+  paymentDate    DateTime?
+  status         String     @default("pending")
+  documentNumber String?
+  notes          String?
+  supplierId     String?
+  clientId       String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  clients        clients?   @relation(fields: [clientId], references: [id])
+  suppliers      suppliers? @relation(fields: [supplierId], references: [id])
+  projects       projects?  @relation(fields: [projectId], references: [id])
+  companies      companies  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, date])
+  @@index([clientId])
+  @@index([supplierId])
+  @@index([dueDate])
+  @@index([date])
+  @@index([status])
+  @@index([type])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model users {
+  id                                   String                    @id @default(cuid())
+  email                                String                    @unique
+  name                                 String
+  password                             String?
+  role                                 String                    @default("viewer")
+  avatar                               String?
+  phone                                String?
+  position                             String?
+  companyId                            String?
+  isActive                             Boolean                   @default(true)
+  lastLoginAt                          DateTime?
+  // Two-Factor Authentication
+  twoFactorEnabled                     Boolean                   @default(false)
+  twoFactorSecret                      String? // TOTP secret (encrypted)
+  twoFactorBackupCodes                 String? // JSON array of backup codes (encrypted)
+  twoFactorVerifiedAt                  DateTime? // When 2FA was last verified
+  createdAt                            DateTime                  @default(now())
+  updatedAt                            DateTime                  @updatedAt
+  accounts                             accounts[]
+  activities                           activities[]
+  ai_conversations                     ai_conversations[]
+  audit_logs                           audit_logs[]
+  budgets                              budgets[]
+  daily_logs                           daily_logs[]
+  medicoes_medicoes_aprovadoPorTousers medicoes[]                @relation("medicoes_aprovadoPorTousers")
+  medicoes_medicoes_criadoPorTousers   medicoes[]                @relation("medicoes_criadoPorTousers")
+  purchase_orders_aprovadoPorTousers   purchase_orders[]         @relation("purchase_orders_aprovadoPorTousers")
+  purchase_orders_criadoPorTousers     purchase_orders[]         @relation("purchase_orders_criadoPorTousers")
+  projects                             projects[]
+  sessions                             sessions[]
+  notification_preferences             notification_preferences?
+  notification_queue                   notification_queue[]
+  notification_history                 notification_history[]
+  custom_reports                       custom_reports[]
+  report_schedules                     report_schedules[]
+  report_executions                    report_executions[]
+  dashboard_widgets                    dashboard_widgets[]
+  // Approval system relations
+  approval_requests_requestedBy        approval_requests[]       @relation("approval_requests_requestedByTousers")
+  approval_requests_cancelledBy        approval_requests[]       @relation("approval_requests_cancelledByTousers")
+  approval_decisions                   approval_decisions[]
+  approval_delegations_from            approval_delegations[]    @relation("approval_delegations_fromUserIdTousers")
+  approval_delegations_to              approval_delegations[]    @relation("approval_delegations_toUserIdTousers")
+  // Proposals relations
+  proposals_sentBy                     proposals[]               @relation("proposals_sentByTousers")
+  proposals_approvedBy                 proposals[]               @relation("proposals_approvedByTousers")
+  proposal_versions                    proposal_versions[]
+  proposal_followups                   proposal_followups[]
+  companies                            companies?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([role])
+  @@index([companyId])
+  @@index([email])
+  @@index([twoFactorEnabled])
+}
+
+model verification_tokens {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model purchase_orders {
+  id                       String                 @id @default(cuid())
+  companyId                String
+  supplierId               String
+  projectId                String?
+  numero                   String
+  dataEmissao              DateTime
+  dataEntrega              DateTime?
+  valorTotal               Decimal                @default(0)
+  status                   String                 @default("rascunho")
+  condicoesPagto           String?
+  observacoes              String?
+  criadoPor                String
+  aprovadoPor              String?
+  aprovadoEm               DateTime?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  itens                    purchase_order_items[]
+  suppliers                suppliers              @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  projects                 projects?              @relation(fields: [projectId], references: [id])
+  companies                companies              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users_aprovadoPorTousers users?                 @relation("purchase_orders_aprovadoPorTousers", fields: [aprovadoPor], references: [id])
+  users_criadoPorTousers   users                  @relation("purchase_orders_criadoPorTousers", fields: [criadoPor], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, numero])
+  @@index([status])
+  @@index([dataEmissao])
+  @@index([supplierId])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model purchase_order_items {
+  id              String          @id @default(cuid())
+  purchaseOrderId String
+  materialId      String?
+  descricao       String
+  unidade         String
+  quantidade      Decimal
+  quantidadeRec   Decimal         @default(0)
+  precoUnitario   Decimal
+  valorTotal      Decimal
+  ordem           Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  purchase_orders purchase_orders @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  materials       materials?      @relation(fields: [materialId], references: [id])
+
+  @@index([materialId])
+  @@index([purchaseOrderId])
+}
+
+// =============================================================================
+// Modelos de Assinatura e Pagamento
+// =============================================================================
+
+model invoices {
+  id               String    @id @default(cuid())
+  companyId        String
+  subscriptionId   String?
+  gatewayInvoiceId String?   @unique // ID da fatura no Mercado Pago
+  status           String    @default("pending") // pending, paid, canceled, refunded
+  amount           Decimal
+  currency         String    @default("BRL")
+  description      String
+  dueDate          DateTime?
+  paidAt           DateTime?
+  paymentMethod    String? // credit_card, pix, boleto
+  paymentGateway   String?   @default("mercadopago")
+  gatewayResponse  String? // JSON com resposta do gateway
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  companies        companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([companyId])
+  @@index([gatewayInvoiceId])
+}
+
+model subscriptions_history {
+  id          String    @id @default(cuid())
+  companyId   String
+  action      String // created, renewed, upgraded, downgraded, canceled, reactivated
+  fromPlan    String?
+  toPlan      String?
+  reason      String?
+  performedBy String? // ID do usuário ou "system"
+  metadata    String? // JSON com dados adicionais
+  createdAt   DateTime  @default(now())
+  companies   companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// Modelos de Webhooks
+// =============================================================================
+
+model webhooks {
+  id                 String               @id @default(cuid())
+  companyId          String
+  name               String // Nome identificador do webhook
+  url                String // URL de destino
+  secret             String // Secret para assinatura HMAC
+  events             String // Eventos inscritos (JSON array)
+  isActive           Boolean              @default(true)
+  headers            String? // Headers customizados (JSON object)
+  timeout            Int                  @default(10000) // Timeout em ms
+  retryCount         Int                  @default(3) // Tentativas em caso de falha
+  retryDelay         Int                  @default(1000) // Delay entre tentativas em ms
+  lastTriggeredAt    DateTime?
+  lastSuccessAt      DateTime?
+  lastFailureAt      DateTime?
+  failureCount       Int                  @default(0)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  companies          companies            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  webhook_deliveries webhook_deliveries[]
+
+  @@index([companyId])
+  @@index([isActive])
+}
+
+model webhook_deliveries {
+  id             String    @id @default(cuid())
+  webhookId      String
+  event          String // Tipo do evento
+  payload        String // JSON do payload enviado
+  responseStatus Int? // HTTP status code da resposta
+  responseBody   String? // Corpo da resposta
+  responseTime   Int? // Tempo de resposta em ms
+  attempt        Int       @default(1) // Número da tentativa
+  success        Boolean   @default(false)
+  error          String? // Mensagem de erro se falhou
+  deliveredAt    DateTime? // Quando foi entregue
+  nextRetryAt    DateTime? // Próxima tentativa agendada
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  webhooks       webhooks  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([success])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// Modelos de Notificações Avançadas
+// =============================================================================
+
+// Preferências de notificação por usuário
+model notification_preferences {
+  id        String @id @default(cuid())
+  userId    String @unique
+  companyId String
+
+  // Canais de notificação
+  emailEnabled Boolean @default(true)
+  pushEnabled  Boolean @default(false)
+  inAppEnabled Boolean @default(true)
+  smsEnabled   Boolean @default(false)
+
+  // Frequência de notificações (instant, hourly, daily, weekly)
+  frequency String @default("instant")
+
+  // Categorias de notificação
+  projectNotifications   Boolean @default(true) // Criação, atualização, status de projetos
+  financialNotifications Boolean @default(true) // Pagamentos, cobranças, orçamentos
+  scheduleNotifications  Boolean @default(true) // Tarefas, cronogramas, prazos
+  stockNotifications     Boolean @default(true) // Estoque baixo, reposição
+  systemNotifications    Boolean @default(true) // Sistema, segurança, atualizações
+  dailyLogNotifications  Boolean @default(true) // Diário de obra
+
+  // Horário preferido para resumos (formato HH:MM)
+  digestTime     String @default("09:00")
+  digestTimezone String @default("America/Sao_Paulo")
+
+  // Dias da semana para resumos (JSON array: [1,2,3,4,5] = Seg-Sex)
+  digestDays String @default("[1,2,3,4,5]")
+
+  // Configurações específicas
+  quietHoursEnabled Boolean @default(false)
+  quietHoursStart   String  @default("22:00")
+  quietHoursEnd     String  @default("07:00")
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+// Fila de notificações para processamento
+model notification_queue {
+  id        String  @id @default(cuid())
+  companyId String
+  userId    String?
+
+  // Conteúdo da notificação
+  type     String // project, financial, schedule, stock, system, daily_log
+  category String // info, success, warning, error
+  title    String
+  message  String
+  data     String? // JSON com dados adicionais
+
+  // Entidade relacionada
+  entityType String? // project, budget, task, material, etc.
+  entityId   String? // ID da entidade
+
+  // Status de processamento
+  status   String @default("pending") // pending, sent, failed, cancelled
+  channels String // JSON array: ["email", "push", "in_app"]
+
+  // Tentativas e erro
+  attempts    Int     @default(0)
+  maxAttempts Int     @default(3)
+  lastError   String?
+
+  // Agendamento
+  scheduledFor DateTime? // Quando deve ser enviada
+  sentAt       DateTime? // Quando foi enviada
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     users?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  companies companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([companyId])
+  @@index([userId])
+  @@index([type])
+  @@index([scheduledFor])
+  @@index([createdAt])
+}
+
+// Histórico de notificações enviadas
+model notification_history {
+  id        String @id @default(cuid())
+  companyId String
+  userId    String
+
+  // Conteúdo
+  type     String
+  category String
+  title    String
+  message  String
+  data     String?
+
+  // Entidade relacionada
+  entityType String?
+  entityId   String?
+
+  // Canal usado
+  channel String // email, push, in_app, sms
+
+  // Status
+  success      Boolean @default(true)
+  errorMessage String?
+
+  // Timestamps
+  sentAt DateTime  @default(now())
+  readAt DateTime?
+
+  users     users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([type])
+  @@index([sentAt])
+  @@index([readAt])
+}
+
+// =============================================================================
+// Modelos de Relatórios e BI Avançado
+// =============================================================================
+
+// Relatórios customizados
+model custom_reports {
+  id        String @id @default(cuid())
+  companyId String
+  createdBy String
+
+  // Identificação
+  name        String
+  description String?
+  category    String  @default("general") // general, financial, project, operational, custom
+  type        String  @default("table") // table, chart, pivot, dashboard
+
+  // Configuração do relatório
+  dataSource   String // projects, budgets, transactions, daily_logs, medicoes, etc.
+  queryConfig  String // JSON com configurações de consulta (filters, groupBy, aggregations, etc.)
+  columnConfig String? // JSON com configuração de colunas (order, visibility, format, etc.)
+  chartConfig  String? // JSON com configuração de gráfico (type, x, y, colors, etc.)
+
+  // Filtros salvos
+  defaultFilters String? // JSON com filtros padrão
+
+  // Configuração de acesso
+  isPublic  Boolean @default(false)
+  isDefault Boolean @default(false)
+
+  // Tags para organização
+  tags String? // JSON array de tags
+
+  // Cache e performance
+  cacheEnabled  Boolean   @default(true)
+  cacheDuration Int       @default(300) // Segundos
+  lastCachedAt  DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             users               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  companies         companies           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  report_schedules  report_schedules[]
+  report_executions report_executions[]
+
+  @@index([companyId])
+  @@index([createdBy])
+  @@index([category])
+  @@index([type])
+  @@index([dataSource])
+  @@index([createdAt])
+}
+
+// Agendamentos de relatórios
+model report_schedules {
+  id        String @id @default(cuid())
+  reportId  String
+  companyId String
+  createdBy String
+
+  // Configuração do agendamento
+  name           String
+  frequency      String // daily, weekly, monthly, quarterly, yearly, custom
+  cronExpression String? // Expressão cron para frequências customizadas
+
+  // Horários
+  scheduledTime String // HH:mm
+  timezone      String    @default("America/Sao_Paulo")
+  nextRunAt     DateTime?
+  lastRunAt     DateTime?
+
+  // Dias da semana (para weekly)
+  daysOfWeek String? // JSON array: [1,2,3,4,5] (0 = domingo)
+
+  // Dia do mês (para monthly)
+  dayOfMonth Int? @default(1)
+
+  // Configuração de entrega
+  recipients     String // JSON array de emails
+  format         String  @default("pdf") // pdf, excel, csv, html
+  includeChart   Boolean @default(true)
+  includeSummary Boolean @default(true)
+
+  // Filtros específicos do agendamento
+  filters String? // JSON com filtros aplicados
+
+  // Status
+  isActive   Boolean @default(true)
+  lastStatus String? // success, failed, pending
+  lastError  String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  custom_reports    custom_reports      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  users             users               @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  companies         companies           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  report_executions report_executions[]
+
+  @@index([reportId])
+  @@index([companyId])
+  @@index([isActive])
+  @@index([nextRunAt])
+}
+
+// Histórico de execuções de relatórios
+model report_executions {
+  id         String  @id @default(cuid())
+  reportId   String
+  scheduleId String?
+  companyId  String
+  executedBy String?
+
+  // Contexto da execução
+  executionType String  @default("manual") // manual, scheduled, api
+  filters       String? // JSON com filtros aplicados
+
+  // Resultado
+  status       String  @default("pending") // pending, running, completed, failed
+  recordCount  Int?
+  dataChecksum String? // Hash dos dados para cache
+
+  // Arquivos gerados
+  pdfUrl   String?
+  excelUrl String?
+  csvUrl   String?
+  htmlUrl  String?
+
+  // Performance
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+
+  // Erros
+  errorMessage String?
+  errorStack   String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  custom_reports   custom_reports    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report_schedules report_schedules? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  users            users?            @relation(fields: [executedBy], references: [id], onDelete: SetNull)
+  companies        companies         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([scheduleId])
+  @@index([companyId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Widgets de Dashboard customizados
+model dashboard_widgets {
+  id        String  @id @default(cuid())
+  companyId String
+  userId    String?
+
+  // Identificação
+  name String
+  type String // kpi, chart, table, gauge, progress, radar, scatter, custom
+
+  // Configuração
+  dataSource    String // Same as custom_reports
+  queryConfig   String // JSON
+  displayConfig String? // JSON (colors, thresholds, format, etc.)
+
+  // Posicionamento no dashboard
+  position String // JSON { x, y, w, h }
+  order    Int    @default(0)
+
+  // Configuração de atualização
+  refreshInterval Int? // Segundos (null = manual)
+  lastRefreshedAt DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     users?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([type])
+}
+
+// =============================================================================
+// Modelos de Sistema de Aprovações e Workflows
+// =============================================================================
+
+// Definição de fluxos de aprovação
+model approval_workflows {
+  id        String @id @default(cuid())
+  companyId String
+
+  // Identificação
+  name        String
+  description String?
+  code        String? // Código único para identificação programática
+
+  // Tipo de entidade que este workflow aprova
+  entityType String // budget, purchase_order, transaction, medicao, project
+
+  // Configuração
+  triggerMode     String   @default("manual") // manual, auto, threshold
+  thresholdMin    Decimal? // Valor mínimo para trigger automático
+  thresholdMax    Decimal? // Valor máximo (opcional)
+  isActive        Boolean  @default(true)
+  allowDelegation Boolean  @default(true) // Permite delegar aprovação
+  allowRejection  Boolean  @default(true) // Permite rejeitar
+  requireComment  Boolean  @default(false) // Exige comentário na aprovação
+  notifyRequester Boolean  @default(true) // Notifica solicitante
+  notifyApprovers Boolean  @default(true) // Notifica aprovadores
+
+  // Timeout e escalation
+  timeoutDays          Int? // Dias para timeout
+  escalationTo         String? // Role ou userId para escalation
+  autoApproveOnTimeout Boolean @default(false)
+
+  // Configuração de ordem
+  approvalOrder String @default("sequential") // sequential, parallel, any
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies         companies           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  approval_steps    approval_steps[]
+  approval_requests approval_requests[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([entityType])
+  @@index([isActive])
+}
+
+// Etapas do fluxo de aprovação
+model approval_steps {
+  id         String @id @default(cuid())
+  workflowId String
+
+  // Identificação
+  name        String
+  description String?
+  order       Int     @default(0) // Ordem da etapa (1, 2, 3...)
+
+  // Configuração de aprovadores
+  approverType String  @default("user") // user, role, manager, owner
+  approverId   String? // userId específico (se approverType = user)
+  approverRole String? // role específica (se approverType = role)
+
+  // Configuração de aprovação
+  isRequired        Boolean @default(true) // Etapa obrigatória
+  minApprovals      Int     @default(1) // Mínimo de aprovações (para parallel)
+  canEditData       Boolean @default(false) // Pode editar dados durante aprovação
+  canAddAttachments Boolean @default(true)
+
+  // Condições (JSON)
+  conditions String? // Condições para ativar esta etapa
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  approval_workflows approval_workflows   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  approval_decisions approval_decisions[]
+
+  @@index([workflowId])
+  @@index([order])
+}
+
+// Solicitações de aprovação
+model approval_requests {
+  id         String @id @default(cuid())
+  companyId  String
+  workflowId String
+
+  // Entidade sendo aprovada
+  entityType String
+  entityId   String
+  entityData String? // Snapshot dos dados no momento da solicitação (JSON)
+
+  // Solicitante
+  requestedBy String
+  requestedAt DateTime @default(now())
+
+  // Status
+  status      String @default("pending") // pending, in_progress, approved, rejected, cancelled, expired
+  currentStep Int    @default(1) // Etapa atual (ordem)
+
+  // Resumo
+  title       String
+  description String?
+  value       Decimal? // Valor monetário (se aplicável)
+  urgency     String   @default("normal") // low, normal, high, urgent
+
+  // Datas importantes
+  dueDate      DateTime?
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  cancelledBy  String?
+  cancelReason String?
+
+  // Comentários gerais
+  notes String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies                                  companies              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  approval_workflows                         approval_workflows     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  users_approval_requests_requestedByTousers users                  @relation("approval_requests_requestedByTousers", fields: [requestedBy], references: [id], onDelete: Cascade)
+  users_approval_requests_cancelledByTousers users?                 @relation("approval_requests_cancelledByTousers", fields: [cancelledBy], references: [id], onDelete: SetNull)
+  approval_decisions                         approval_decisions[]
+  approval_delegations                       approval_delegations[]
+
+  @@unique([entityType, entityId])
+  @@index([companyId])
+  @@index([workflowId])
+  @@index([requestedBy])
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([dueDate])
+}
+
+// Decisões individuais de aprovação
+model approval_decisions {
+  id        String @id @default(cuid())
+  requestId String
+  stepId    String
+
+  // Aprovador
+  approverId   String
+  approverRole String? // Role no momento da decisão
+
+  // Decisão
+  decision    String // approved, rejected, returned, delegated
+  comment     String?
+  data        String? // Dados editados durante aprovação (JSON)
+  attachments String? // URLs de anexos (JSON array)
+
+  // Timestamps
+  decidedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  approval_requests approval_requests @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  approval_steps    approval_steps    @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  users             users             @relation(fields: [approverId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, stepId, approverId])
+  @@index([requestId])
+  @@index([stepId])
+  @@index([approverId])
+  @@index([decision])
+}
+
+// Delegações de aprovação (quando um usuário delega suas aprovações para outro)
+model approval_delegations {
+  id        String @id @default(cuid())
+  companyId String
+
+  // Usuários
+  fromUserId String // Quem delega
+  toUserId   String // Quem recebe a delegação
+
+  // Período
+  startDate DateTime
+  endDate   DateTime?
+
+  // Escopo
+  scope    String  @default("all") // all, workflow, entityType
+  scopeIds String? // IDs específicos (JSON array) se scope não for "all"
+
+  // Status
+  isActive Boolean @default(true)
+  reason   String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies                                    companies           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users_approval_delegations_fromUserIdTousers users               @relation("approval_delegations_fromUserIdTousers", fields: [fromUserId], references: [id], onDelete: Cascade)
+  users_approval_delegations_toUserIdTousers   users               @relation("approval_delegations_toUserIdTousers", fields: [toUserId], references: [id], onDelete: Cascade)
+  approval_requests                            approval_requests[]
+
+  @@index([companyId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([isActive])
+  @@index([startDate, endDate])
+}
+
+// =============================================================================
+// Backup Scheduling System
+// =============================================================================
+
+// Configuração de agendamento de backups
+model backup_schedules {
+  id        String @id @default(cuid())
+  companyId String
+
+  // Configuração do backup
+  name           String
+  description    String?
+  frequency      String // hourly, daily, weekly, monthly
+  cronExpression String? // Expressão cron customizada
+
+  // Módulos a serem incluídos
+  modules String // JSON array: ["projects", "clients", "suppliers"]
+
+  // Configuração de retenção
+  retentionDays   Int  @default(30) // Dias para manter backups
+  maxBackups      Int  @default(10) // Máximo de backups armazenados
+  encryptBackups  Boolean @default(true)
+  compressBackups Boolean @default(true)
+
+  // Agendamento
+  scheduledTime String  @default("02:00") // HH:mm
+  timezone      String  @default("America/Sao_Paulo")
+  nextRunAt     DateTime?
+  lastRunAt     DateTime?
+
+  // Dias da semana (para weekly)
+  daysOfWeek String? // JSON array: [1,2,3,4,5]
+
+  // Dia do mês (para monthly)
+  dayOfMonth Int? @default(1)
+
+  // Notificações
+  notifyOnSuccess Boolean @default(true)
+  notifyOnFailure Boolean @default(true)
+  notifyEmails    String? // JSON array de emails
+
+  // Status
+  isActive   Boolean @default(true)
+  lastStatus String? // pending, running, success, failed
+  lastError  String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies      companies       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  backup_history backup_history[]
+
+  @@index([companyId])
+  @@index([isActive])
+  @@index([nextRunAt])
+}
+
+// Histórico de execuções de backup
+model backup_history {
+  id         String  @id @default(cuid())
+  scheduleId String?
+  companyId  String
+  triggeredBy String? // userId ou "system"
+
+  // Tipo de execução
+  triggerType String @default("scheduled") // manual, scheduled, api
+
+  // Configuração do backup
+  modules    String // JSON array
+  encrypted  Boolean @default(true)
+  compressed Boolean @default(true)
+
+  // Resultado
+  status       String @default("pending") // pending, running, success, failed, partial
+  recordCounts String? // JSON com contagem por módulo
+  checksum     String? // Hash de verificação
+
+  // Armazenamento
+  storageType String? @default("local") // local, s3, gcs, azure
+  storagePath String? // Caminho do arquivo
+  fileSize    Int? // Tamanho em bytes
+  expiresAt   DateTime? // Data de expiração
+
+  // Performance
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+
+  // Erros
+  errorMessage String?
+  errorStack   String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  backup_schedules backup_schedules? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  companies        companies          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId])
+  @@index([companyId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([expiresAt])
+}
+
+// =============================================================================
+// Sistema de Propostas Comerciais
+// =============================================================================
+
+// Propostas Comerciais - Documentos formais enviados aos clientes
+model proposals {
+  id        String @id @default(cuid())
+  companyId String
+  clientId  String?
+  projectId String?
+  budgetId  String? // Orçamento de origem
+
+  // Identificação
+  number       String  // Número sequencial (ex: PROP-2024-0001)
+  title        String
+  objective    String? // Objetivo/escopo da proposta
+  publicToken  String? @unique // Token para acesso público da proposta
+
+  // Versão
+  version    Int    @default(1)
+  parentId   String? // ID da versão anterior (para versionamento)
+  isLatest   Boolean @default(true)
+
+  // Status do fluxo
+  status     String  @default("draft") // draft, review, sent, viewed, accepted, rejected, expired, cancelled
+  internalStatus String? @default("internal_review") // internal_review, pending_approval, approved, rejected
+
+  // Valores
+  subtotal      Decimal @default(0)
+  discountType  String? @default("percentage") // percentage, fixed
+  discountValue Decimal? @default(0)
+  discountReason String?
+  totalValue    Decimal @default(0)
+
+  // Condições comerciais
+  paymentTerms     String? // Condições de pagamento
+  deliveryTime     String? // Prazo de entrega/execução
+  warrantyTerms    String? // Termos de garantia
+  validUntil       DateTime? // Validade da proposta
+  deliveryAddress  String? // Endereço de entrega/execução
+
+  // Termos e condições
+  terms           String? // Termos e condições gerais
+  notes           String? // Observações internas
+  clientNotes     String? // Notas visíveis para o cliente
+
+  // Configurações de apresentação
+  includeCover      Boolean @default(true)
+  includeSummary    Boolean @default(true)
+  includeTimeline   Boolean @default(false)
+  includeTeam       Boolean @default(false)
+  includePortfolio  Boolean @default(false)
+  customIntroduction String? // Introdução personalizada
+  coverImage        String? // URL da imagem de capa
+
+  // Envio e acompanhamento
+  sentAt        DateTime?
+  sentBy        String?
+  viewedAt      DateTime?
+  viewedCount   Int       @default(0)
+  respondedAt   DateTime?
+  responseNotes String?
+
+  // Aceite/Rejeição
+  acceptedAt     DateTime?
+  acceptedBy     String? // Nome de quem aceitou
+  acceptedIp     String? // IP para fins legais
+  acceptedUserAgent String? // User agent para fins legais
+  rejectedAt     DateTime?
+  rejectionReason String?
+
+  // Aprovação interna
+  approvedAt DateTime?
+  approvedBy String?
+  reviewNotes String?
+
+  // PDF gerado
+  pdfUrl      String?
+  pdfGeneratedAt DateTime?
+
+  // Assinatura digital
+  requiresSignature Boolean @default(false)
+  signatureUrl      String?
+  signedAt          DateTime?
+  signedBy          String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  clients          clients?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  projects         projects?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  budgets          budgets?          @relation(fields: [budgetId], references: [id], onDelete: SetNull)
+  companies        companies         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users_proposals_sentBy users?      @relation("proposals_sentByTousers", fields: [sentBy], references: [id], onDelete: SetNull)
+  users_proposals_approvedBy users?  @relation("proposals_approvedByTousers", fields: [approvedBy], references: [id], onDelete: SetNull)
+  proposal_items   proposal_items[]
+  proposal_versions proposal_versions[]
+  previousVersion proposals?         @relation("proposals_versions", fields: [parentId], references: [id], onDelete: SetNull)
+  nextVersions proposals[]           @relation("proposals_versions")
+  proposal_followups proposal_followups[]
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([budgetId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([validUntil])
+  @@index([isLatest])
+}
+
+// Itens da Proposta
+model proposal_items {
+  id         String @id @default(cuid())
+  proposalId String
+
+  // Identificação
+  code        String? // Código do item (opcional)
+  title       String
+  description String?
+
+  // Categorização
+  category    String? // Categoria do item (ex: Materiais, Serviços)
+  subcategory String?
+
+  // Quantidade e valores
+  unit       String  @default("un")
+  quantity   Decimal @default(1)
+  unitPrice  Decimal @default(0)
+  totalPrice Decimal @default(0)
+
+  // Detalhes
+  details    String? // Especificações técnicas
+  includes   String? // O que está incluído (JSON array)
+  excludes   String? // O que NÃO está incluído (JSON array)
+  notes      String? // Notas visíveis para o cliente
+
+  // Ordem
+  order      Int @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proposals proposals @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+  @@index([category])
+}
+
+// Histórico de Versões da Proposta
+model proposal_versions {
+  id         String @id @default(cuid())
+  proposalId String
+  previousVersionId String? // ID da versão anterior (auto-referência)
+
+  // Versão
+  version     Int
+  changeLog   String? // O que mudou nesta versão
+  changedBy   String
+  changedAt   DateTime @default(now())
+
+  // Snapshot dos dados (JSON)
+  snapshot    String // JSON completo da proposta nesta versão
+  itemsSnapshot String? // JSON dos itens nesta versão
+
+  // Motivo da alteração
+  changeReason String?
+
+  proposals proposals @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  previousVersion proposal_versions? @relation("proposal_versions_chain", fields: [previousVersionId], references: [id], onDelete: SetNull)
+  nextVersions proposal_versions[] @relation("proposal_versions_chain")
+  users users @relation(fields: [changedBy], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+  @@index([previousVersionId])
+  @@index([changedAt])
+}
+
+// Modelos de Proposta (Templates)
+model proposal_templates {
+  id        String @id @default(cuid())
+  companyId String
+
+  // Identificação
+  name        String
+  code        String?
+  description String?
+  category    String? // Tipo de obra/serviço
+
+  // Estrutura padrão
+  defaultTerms      String? // Termos padrão
+  defaultPaymentTerms String?
+  defaultWarranty   String?
+  defaultValidDays  Int @default(30) // Dias de validade padrão
+
+  // Configurações de apresentação
+  includeCover     Boolean @default(true)
+  includeSummary   Boolean @default(true)
+  includeTimeline  Boolean @default(false)
+  includeTeam      Boolean @default(false)
+  includePortfolio Boolean @default(false)
+  coverImage       String?
+  customIntroduction String?
+  customStyles     String? // CSS customizado (JSON)
+
+  // Estrutura de seções (JSON)
+  sectionsConfig String? // Configuração das seções
+
+  // Status
+  isActive   Boolean @default(true)
+  isDefault  Boolean @default(false)
+
+  // Uso
+  usageCount Int @default(0)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companies companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([isActive])
+  @@index([category])
+}
+
+// Follow-ups e Lembretes de Proposta
+model proposal_followups {
+  id         String @id @default(cuid())
+  proposalId String
+  companyId  String
+  userId     String
+
+  // Tipo de follow-up
+  type     String // reminder, call, email, meeting, note
+  title    String
+  content  String?
+
+  // Agendamento
+  scheduledAt DateTime?
+  completedAt DateTime?
+
+  // Status
+  status   String @default("pending") // pending, completed, cancelled
+  outcome  String? // Resultado do follow-up
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proposals proposals @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  companies companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users    users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+  @@index([companyId])
+  @@index([userId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+// =============================================================================
+// RH - Recursos Humanos / Folha de Pagamento
+// =============================================================================
+
+// Funcionários
+model employees {
+  id        String  @id @default(cuid())
+  companyId String
+
+  // Dados pessoais
+  name           String
+  cpf            String
+  rg             String?
+  birthDate      DateTime?
+  gender         String? // masculine, feminine, other
+  maritalStatus  String? // single, married, divorced, widowed
+  nationality    String?
+  educationLevel String?
+
+  // Contato
+  email       String?
+  phone       String?
+  mobile      String?
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?
+
+  // Dados trabalhistas
+  employeeNumber   String?  // Número de registro
+  admissionDate    DateTime
+  terminationDate  DateTime?
+  status           String   @default("active") // active, terminated, suspended, vacation, leave
+  employmentType   String   @default("clt") // clt, pj, seasonal, intern, apprentice
+  workRegime       String?  // Inteiro, Parcial, etc.
+  weeklyHours      Int      @default(44)
+  jobTitle         String?  // Cargo
+  department       String?  // Setor/Departamento
+  projectId        String?  // Projeto alocado (obra)
+
+  // Dados contratuais
+  salary            Decimal  @default(0)
+  salaryType        String   @default("monthly") // monthly, hourly
+  salaryVariation   String?  // Tipo de variação salarial
+  cnpjCei           String?  // CEI da obra
+  cbo               String?  // Código CBO da ocupação
+  union             String?  // Sindicato
+  unionDuesPercent  Decimal? @default(0) // Contribuição sindical %
+
+  // Conta bancária para pagamento
+  bankName          String?
+  bankCode          String?
+  bankAgency       String?
+  bankAccount      String?
+  bankAccountType  String? // checking, savings
+  pixKey           String?
+
+  // Benefícios (JSON array de IDs de employee_benefits)
+  benefitsJson     String?
+
+  // Documentos (PDFs, imagens)
+  documentsJson    String? // JSON com lista de documentos
+
+  // Observações
+  notes            String?
+
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relações
+  companies        companies             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee_documents employee_documents[]
+  employee_benefits employee_benefits[]
+  employee_vacations employee_vacations[]
+  employee_leaves   employee_leaves[]
+  time_records      time_records[]
+  payroll_items     payroll_items[]
+
+  @@unique([companyId, cpf])
+  @@unique([companyId, employeeNumber])
+  @@index([companyId])
+  @@index([status])
+  @@index([department])
+  @@index([projectId])
+  @@index([admissionDate])
+}
+
+// Documentos do Funcionário
+model employee_documents {
+  id         String   @id @default(cuid())
+  employeeId String
+  companyId  String
+
+  // Tipo de documento
+  type       String // contract, rg, cpf, ctps, pis, medical_certificate, training, other
+  name       String
+  description String?
+
+  // Arquivo
+  fileUrl    String
+  fileExt    String? // pdf, jpg, png
+  fileSize   Int?    // bytes
+
+  // Validade (para documentos com expiração)
+  expiresAt  DateTime?
+
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  employees  employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  companies  companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([companyId])
+  @@index([type])
+}
+
+// Benefícios do Funcionário
+model employee_benefits {
+  id         String   @id @default(cuid())
+  companyId  String
+  employeeId String?
+
+  // Identificação
+  name       String   // Vale Refeição, Vale Alimentação, Plano de Saúde, etc.
+  code       String?
+  type       String   // meal_voucher, food_voucher, health_insurance, dental_insurance, transportation, education, other
+  description String?
+
+  // Valores
+  value      Decimal  @default(0)
+  valueType  String   @default("fixed") // fixed, percentage
+  employeeContribution Decimal @default(0) // Contribuição do funcionário
+  employerContribution Decimal @default(0) // Contribuição da empresa
+
+  // Configurações
+  isActive   Boolean  @default(true)
+  isTaxable  Boolean  @default(false) // Se tributa IR
+  startDate  DateTime?
+  endDate    DateTime?
+
+  // Fornecedor/Operadora
+  providerName String?
+  providerCode String?
+
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  companies  companies  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employees  employees? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([type])
+  @@index([isActive])
+}
+
+// Registro de Ponto
+model time_records {
+  id         String   @id @default(cuid())
+  companyId  String
+  employeeId String
+
+  // Data e hora
+  date       DateTime // Data do registro
+  time       DateTime // Hora do registro
+  type       String   // entry, exit, break_start, break_end, overtime_start, overtime_end
+
+  // Localização (opcional)
+  latitude   Float?
+  longitude  Float?
+  location   String?
+
+  // Dispositivo
+  device     String?  // web, mobile, biometric, manual
+  deviceId   String?
+  ipAddress  String?
+
+  // Observações
+  notes      String?
+
+  // Ajustes
+  isAdjusted Boolean   @default(false)
+  adjustedBy String?
+  adjustedAt DateTime?
+  adjustReason String?
+
+  // Aprovação
+  approvedBy String?
+  approvedAt DateTime?
+
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  employees  employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  companies  companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([date])
+  @@index([type])
+}
+
+// Férias
+model employee_vacations {
+  id         String   @id @default(cuid())
+  companyId  String
+  employeeId String
+
+  // Período aquisitivo
+  acquisitionStart DateTime // Início do período aquisitivo
+  acquisitionEnd   DateTime // Fim do período aquisitivo
+
+  // Período de gozo
+  vacationStart DateTime // Início das férias
+  vacationEnd   DateTime // Fim das férias
+  days          Int      // Dias de férias
+
+  // Abono pecuniário (vender férias)
+  soldDays      Int      @default(0) // Dias vendidos
+  soldValue     Decimal? @default(0)
+
+  // Adiantamento 13º
+  advance13th   Boolean  @default(false)
+  advance13thValue Decimal?
+
+  // Valores
+  vacationValue Decimal @default(0) // Valor das férias
+  oneThirdValue Decimal @default(0) // 1/3 constitucional
+  totalValue    Decimal @default(0) // Total a receber
+
+  // Status
+  status       String   @default("pending") // pending, approved, cancelled, enjoyed
+  approvedBy   String?
+  approvedAt   DateTime?
+
+  // Observações
+  notes        String?
+
+  // Timestamps
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  employees    employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  companies    companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([vacationStart])
+  @@index([status])
+}
+
+// Afastamentos
+model employee_leaves {
+  id         String   @id @default(cuid())
+  companyId  String
+  employeeId String
+
+  // Tipo de afastamento
+  type       String   // sick_leave, accident, maternity, paternity, marriage, bereavement, suspension, other
+  reason     String
+
+  // Período
+  startDate  DateTime
+  endDate    DateTime?
+  days       Int?
+
+  // Documentação
+  documentUrl String? // Atestado, laudo, etc.
+  cidCode    String?  // Código CID (para doenças)
+
+  // Remuneração
+  isPaid     Boolean  @default(true)
+  paidPercent Decimal @default(100)
+
+  // Status
+  status     String   @default("active") // active, returned, cancelled
+  returnedAt DateTime?
+
+  // Observações
+  notes      String?
+
+  // Timestamps
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  employees  employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  companies  companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([startDate])
+  @@index([type])
+  @@index([status])
+}
+
+// Folha de Pagamento
+model payrolls {
+  id        String   @id @default(cuid())
+  companyId String
+
+  // Referência
+  referenceMonth Int    // 1-12
+  referenceYear  Int
+  number         String // Número da folha (sequencial)
+
+  // Tipo de folha
+  type      String   @default("regular") // regular, 13th_first, 13th_second, vacation, rescission, complement
+
+  // Status
+  status    String   @default("draft") // draft, calculated, approved, paid, cancelled
+
+  // Datas
+  calculationDate DateTime?
+  approvalDate    DateTime?
+  paymentDate     DateTime?
+  dueDate         DateTime?
+
+  // Totais
+  totalGross       Decimal @default(0) // Total de proventos
+  totalDeductions  Decimal @default(0) // Total de descontos
+  totalNet         Decimal @default(0) // Total líquido
+  totalEmployer    Decimal @default(0) // Total encargos patronais
+
+  // Resumo de eventos (JSON)
+  eventsSummary    String? // JSON com resumo de eventos
+
+  // Observações
+  notes            String?
+
+  // Aprovação
+  calculatedBy     String?
+  approvedBy       String?
+
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  companies        companies       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payroll_items    payroll_items[]
+
+  @@unique([companyId, referenceYear, referenceMonth, type])
+  @@index([companyId])
+  @@index([referenceYear])
+  @@index([referenceMonth])
+  @@index([status])
+  @@index([type])
+}
+
+// Itens da Folha de Pagamento
+model payroll_items {
+  id         String   @id @default(cuid())
+  payrollId  String
+  employeeId String
+  companyId  String
+
+  // Proventos
+  baseSalary       Decimal @default(0) // Salário base
+  workedDays       Int     @default(30) // Dias trabalhados
+  overtimeHours    Decimal @default(0)
+  overtimeValue    Decimal @default(0)
+  extraPayValue    Decimal @default(0) // Adicionais
+  nightShiftValue  Decimal @default(0) // Adicional noturno
+  hazardousValue   Decimal @default(0) // Adicional insalubridade
+  commissionValue  Decimal @default(0) // Comissões
+  bonusValue       Decimal @default(0) // Bonificações
+  vacationValue    Decimal @default(0) // Férias
+  thirteenthValue  Decimal @default(0) // 13º salário
+
+  // Descontos
+  inssValue        Decimal @default(0) // INSS
+  irrfValue        Decimal @default(0) // IRRF
+  fgtsValue        Decimal @default(0) // FGTS (para referência)
+  unionDuesValue   Decimal @default(0) // Contribuição sindical
+  mealVoucherValue Decimal @default(0) // Vale refeição descontado
+  foodVoucherValue Decimal @default(0) // Vale alimentação descontado
+  transportationValue Decimal @default(0) // Vale transporte descontado
+  healthPlanValue  Decimal @default(0) // Plano de saúde descontado
+  dentalPlanValue  Decimal @default(0) // Plano odontológico descontado
+  advanceValue     Decimal @default(0) // Adiantamentos
+  absenceValue     Decimal @default(0) // Faltas
+  otherDeductionsValue Decimal @default(0) // Outros descontos
+
+  // Totais
+  grossValue       Decimal @default(0) // Total proventos
+  deductionsValue  Decimal @default(0) // Total descontos
+  netValue         Decimal @default(0) // Líquido a receber
+
+  // Encargos patronais
+  employerInss     Decimal @default(0) // INSS patronal
+  employerFgts     Decimal @default(0) // FGTS patronal
+  employerSebrae   Decimal @default(0) // SEBRAI
+  employerSenai    Decimal @default(0) // SENAI
+  employerSesi     Decimal @default(0) // SESI
+  employerTotal    Decimal @default(0) // Total encargos
+
+  // Base de cálculo (para referência)
+  inssBase         Decimal @default(0)
+  irrfBase         Decimal @default(0)
+  fgtsBase         Decimal @default(0)
+
+  // Detalhamento adicional (JSON)
+  eventsJson       String? // JSON com detalhes de cada evento
+
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  payrolls         payrolls  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  employees        employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  companies        companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([payrollId, employeeId])
+  @@index([payrollId])
+  @@index([employeeId])
+  @@index([companyId])
+}

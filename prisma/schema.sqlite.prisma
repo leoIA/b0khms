@@ -1,0 +1,763 @@
+// =============================================================================
+// ConstrutorPro - Schema SQLite (Fallback)
+// =============================================================================
+// Este arquivo é usado quando PostgreSQL não está disponível
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model accounts {
+  id                String  @id
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  users             users   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model activities {
+  id         String    @id
+  companyId  String
+  userId     String
+  userName   String
+  action     String
+  entityType String
+  entityId   String
+  entityName String?
+  details    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now())
+  users      users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies  companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([companyId])
+}
+
+model actual_costs {
+  id           String        @id
+  companyId    String
+  projectId    String
+  budgetItemId String?
+  description  String
+  value        Decimal
+  date         DateTime
+  category     String?
+  notes        String?
+  documentRef  String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime
+  budget_items budget_items? @relation(fields: [budgetItemId], references: [id])
+  projects     projects      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companies    companies     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([budgetItemId])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model ai_conversations {
+  id          String        @id
+  companyId   String
+  userId      String
+  title       String
+  context     String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+  users       users         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companies   companies     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ai_messages ai_messages[]
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+model ai_messages {
+  id               String           @id
+  conversationId   String
+  role             String
+  content          String
+  tokens           Int?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime
+  ai_conversations ai_conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([conversationId])
+}
+
+model alerts {
+  id         String    @id
+  companyId  String
+  type       String
+  title      String
+  message    String
+  entityType String?
+  entityId   String?
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now())
+  companies  companies @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([isRead])
+  @@index([companyId])
+}
+
+model budget_items {
+  id                String              @id
+  budgetId          String
+  compositionId     String?
+  description       String
+  unit              String
+  quantity          Decimal
+  unitPrice         Decimal
+  totalPrice        Decimal
+  notes             String?
+  order             Int                 @default(0)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @default(now())
+  actualQuantity    Decimal?
+  actualTotal       Decimal?
+  actual_costs      actual_costs[]
+  compositions      compositions?       @relation(fields: [compositionId], references: [id])
+  budgets           budgets             @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  task_budget_links task_budget_links[]
+
+  @@index([compositionId])
+  @@index([budgetId])
+}
+
+model budget_template_items {
+  id               String           @id
+  templateId       String
+  compositionId    String?
+  description      String
+  unit             String
+  quantity         Decimal          @default(1)
+  unitPrice        Decimal          @default(0)
+  notes            String?
+  order            Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @default(now())
+  compositions     compositions?    @relation(fields: [compositionId], references: [id])
+  budget_templates budget_templates @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([compositionId])
+  @@index([templateId])
+}
+
+model budget_templates {
+  id                    String                  @id
+  companyId             String
+  name                  String
+  code                  String?
+  description           String?
+  category              String?
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime
+  budget_template_items budget_template_items[]
+  companies             companies               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([isActive])
+  @@index([companyId])
+}
+
+model budgets {
+  id           String         @id
+  companyId    String
+  projectId    String?
+  name         String
+  code         String?
+  description  String?
+  status       String         @default("draft")
+  totalValue   Decimal        @default(0)
+  discount     Decimal?
+  validUntil   DateTime?
+  approvedAt   DateTime?
+  approvedBy   String?
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  budget_items budget_items[]
+  users        users?         @relation(fields: [approvedBy], references: [id])
+  projects     projects?      @relation(fields: [projectId], references: [id])
+  companies    companies      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([projectId])
+  @@index([status])
+  @@index([companyId])
+}
+
+model clients {
+  id           String         @id
+  companyId    String
+  name         String
+  email        String?
+  phone        String?
+  mobile       String?
+  cpfCnpj      String?
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  notes        String?
+  status       String         @default("active")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  companies    companies      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  projects     projects[]
+  transactions transactions[]
+
+  @@unique([companyId, cpfCnpj])
+  @@index([name])
+  @@index([companyId])
+}
+
+model companies {
+  id               String             @id
+  name             String
+  tradingName      String?
+  cnpj             String             @unique
+  email            String
+  phone            String?
+  address          String?
+  city             String?
+  state            String?
+  zipCode          String?
+  logo             String?
+  plan             String             @default("starter")
+  planExpiresAt    DateTime?
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  activities       activities[]
+  actual_costs     actual_costs[]
+  ai_conversations ai_conversations[]
+  alerts           alerts[]
+  budget_templates budget_templates[]
+  budgets          budgets[]
+  clients          clients[]
+  compositions     compositions[]
+  daily_logs       daily_logs[]
+  materials        materials[]
+  medicoes         medicoes[]
+  projects         projects[]
+  quotations       quotations[]
+  schedules        schedules[]
+  suppliers        suppliers[]
+  transactions     transactions[]
+  users            users[]
+
+  @@index([isActive])
+  @@index([cnpj])
+}
+
+model composition_items {
+  id            String       @id
+  compositionId String
+  materialId    String?
+  description   String
+  unit          String
+  quantity      Decimal
+  unitCost      Decimal
+  totalCost     Decimal
+  coefficient   Float?
+  itemType      String       @default("material")
+  order         Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime
+  materials     materials?   @relation(fields: [materialId], references: [id])
+  compositions  compositions @relation(fields: [compositionId], references: [id], onDelete: Cascade)
+
+  @@index([materialId])
+  @@index([compositionId])
+}
+
+model compositions {
+  id                    String                  @id
+  companyId             String
+  code                  String
+  name                  String
+  description           String?
+  unit                  String
+  totalCost             Decimal                 @default(0)
+  totalPrice            Decimal                 @default(0)
+  profitMargin          Float                   @default(30)
+  isActive              Boolean                 @default(true)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime
+  budget_items          budget_items[]
+  budget_template_items budget_template_items[]
+  composition_items     composition_items[]
+  companies             companies               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  medicao_items         medicao_items[]
+
+  @@unique([companyId, code])
+  @@index([isActive])
+  @@index([companyId])
+}
+
+model daily_log_activities {
+  id           String     @id
+  dailyLogId   String
+  description  String
+  location     String?
+  workersCount Int?
+  startTime    String?
+  endTime      String?
+  observations String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now())
+  daily_logs   daily_logs @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+
+  @@index([dailyLogId])
+}
+
+model daily_log_photos {
+  id          String     @id
+  dailyLogId  String
+  url         String
+  description String?
+  order       Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  daily_logs  daily_logs @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+
+  @@index([dailyLogId])
+}
+
+model daily_logs {
+  id                   String                 @id
+  companyId            String
+  projectId            String
+  date                 DateTime
+  weather              String                 @default("sunny")
+  temperatureMin       Float?
+  temperatureMax       Float?
+  workStartTime        String?
+  workEndTime          String?
+  workersCount         Int?
+  summary              String
+  observations         String?
+  incidents            String?
+  visitors             String?
+  createdBy            String
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  daily_log_activities daily_log_activities[]
+  daily_log_photos     daily_log_photos[]
+  users                users                  @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  projects             projects               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companies            companies              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, date])
+  @@index([date])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model materials {
+  id                String              @id
+  companyId         String
+  code              String
+  name              String
+  description       String?
+  unit              String
+  unitCost          Decimal             @default(0)
+  unitPrice         Decimal?
+  supplierId        String?
+  stockQuantity     Decimal?
+  minStock          Decimal?
+  category          String?
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime
+  composition_items composition_items[]
+  suppliers         suppliers?          @relation(fields: [supplierId], references: [id])
+  companies         companies           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([supplierId])
+  @@index([isActive])
+  @@index([companyId])
+}
+
+model medicao_items {
+  id            String        @id
+  medicaoId     String
+  composicaoId  String?
+  descricao     String
+  unidade       String
+  quantidade    Decimal
+  quantidadeAnt Decimal       @default(0)
+  valorUnitario Decimal
+  valorTotal    Decimal
+  observacao    String?
+  ordem         Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now())
+  compositions  compositions? @relation(fields: [composicaoId], references: [id])
+  medicoes      medicoes      @relation(fields: [medicaoId], references: [id], onDelete: Cascade)
+
+  @@index([composicaoId])
+  @@index([medicaoId])
+}
+
+model medicoes {
+  id                                String          @id
+  companyId                         String
+  projectId                         String
+  numero                            Int             @default(1)
+  dataInicio                        DateTime
+  dataFim                           DateTime
+  valorTotal                        Decimal         @default(0)
+  status                            String          @default("rascunho")
+  observacoes                       String?
+  criadoPor                         String
+  aprovadoPor                       String?
+  aprovadoEm                        DateTime?
+  createdAt                         DateTime        @default(now())
+  updatedAt                         DateTime
+  medicao_items                     medicao_items[]
+  users_medicoes_aprovadoPorTousers users?          @relation("medicoes_aprovadoPorTousers", fields: [aprovadoPor], references: [id])
+  users_medicoes_criadoPorTousers   users           @relation("medicoes_criadoPorTousers", fields: [criadoPor], references: [id], onDelete: Cascade)
+  projects                          projects        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companies                         companies       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, numero])
+  @@index([dataInicio])
+  @@index([status])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model password_reset_tokens {
+  id        String   @id
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([email])
+}
+
+model projects {
+  id                String         @id
+  companyId         String
+  clientId          String?
+  name              String
+  code              String?
+  description       String?
+  address           String?
+  city              String?
+  state             String?
+  status            String         @default("planning")
+  startDate         DateTime?
+  endDate           DateTime?
+  estimatedValue    Decimal        @default(0)
+  actualValue       Decimal        @default(0)
+  physicalProgress  Float          @default(0)
+  financialProgress Float          @default(0)
+  managerId         String?
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime
+  actual_costs      actual_costs[]
+  budgets           budgets[]
+  daily_logs        daily_logs[]
+  medicoes          medicoes[]
+  users             users?         @relation(fields: [managerId], references: [id])
+  clients           clients?       @relation(fields: [clientId], references: [id])
+  companies         companies      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quotations        quotations[]
+  schedules         schedules[]
+  transactions      transactions[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@index([clientId])
+  @@index([status])
+  @@index([companyId])
+}
+
+model quotation_items {
+  id                       String                     @id
+  quotationId              String
+  description              String
+  unit                     String
+  quantity                 Decimal
+  notes                    String?
+  order                    Int                        @default(0)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @default(now())
+  quotations               quotations                 @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  quotation_response_items quotation_response_items[]
+
+  @@index([quotationId])
+}
+
+model quotation_response_items {
+  id                  String              @id
+  quotationResponseId String
+  quotationItemId     String
+  unitPrice           Decimal?
+  totalPrice          Decimal?
+  notes               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @default(now())
+  quotation_items     quotation_items     @relation(fields: [quotationItemId], references: [id], onDelete: Cascade)
+  quotation_responses quotation_responses @relation(fields: [quotationResponseId], references: [id], onDelete: Cascade)
+
+  @@index([quotationItemId])
+  @@index([quotationResponseId])
+}
+
+model quotation_responses {
+  id                       String                     @id
+  quotationId              String
+  supplierId               String
+  status                   String                     @default("pending")
+  notes                    String?
+  validUntil               DateTime?
+  totalValue               Decimal?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime
+  quotation_response_items quotation_response_items[]
+  suppliers                suppliers                  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  quotations               quotations                 @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@unique([quotationId, supplierId])
+  @@index([status])
+  @@index([supplierId])
+  @@index([quotationId])
+}
+
+model quotations {
+  id                  String                @id
+  companyId           String
+  projectId           String?
+  name                String
+  code                String?
+  description         String?
+  status              String                @default("draft")
+  deadline            DateTime?
+  notes               String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  quotation_items     quotation_items[]
+  quotation_responses quotation_responses[]
+  projects            projects?             @relation(fields: [projectId], references: [id])
+  companies           companies             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([projectId])
+  @@index([status])
+  @@index([companyId])
+}
+
+model schedule_task_dependencies {
+  id                                                                    String         @id
+  taskId                                                                String
+  dependsOnId                                                           String
+  schedule_tasks_schedule_task_dependencies_dependsOnIdToschedule_tasks schedule_tasks @relation("schedule_task_dependencies_dependsOnIdToschedule_tasks", fields: [dependsOnId], references: [id], onDelete: Cascade)
+  schedule_tasks_schedule_task_dependencies_taskIdToschedule_tasks      schedule_tasks @relation("schedule_task_dependencies_taskIdToschedule_tasks", fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnId])
+}
+
+model schedule_tasks {
+  id                                                                                String                       @id
+  scheduleId                                                                        String
+  parentId                                                                          String?
+  name                                                                              String
+  description                                                                       String?
+  startDate                                                                         DateTime
+  endDate                                                                           DateTime
+  duration                                                                          Int                          @default(0)
+  progress                                                                          Float                        @default(0)
+  status                                                                            String                       @default("pending")
+  responsible                                                                       String?
+  order                                                                             Int                          @default(0)
+  createdAt                                                                         DateTime                     @default(now())
+  updatedAt                                                                         DateTime
+  financialProgress                                                                 Float?
+  physicalProgress                                                                  Float?
+  schedule_task_dependencies_schedule_task_dependencies_dependsOnIdToschedule_tasks schedule_task_dependencies[] @relation("schedule_task_dependencies_dependsOnIdToschedule_tasks")
+  schedule_task_dependencies_schedule_task_dependencies_taskIdToschedule_tasks      schedule_task_dependencies[] @relation("schedule_task_dependencies_taskIdToschedule_tasks")
+  schedule_tasks                                                                    schedule_tasks?              @relation("schedule_tasksToschedule_tasks", fields: [parentId], references: [id])
+  other_schedule_tasks                                                              schedule_tasks[]             @relation("schedule_tasksToschedule_tasks")
+  schedules                                                                         schedules                    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  task_budget_links                                                                 task_budget_links[]
+
+  @@index([status])
+  @@index([parentId])
+  @@index([scheduleId])
+}
+
+model schedules {
+  id             String           @id
+  companyId      String
+  projectId      String
+  name           String
+  description    String?
+  startDate      DateTime
+  endDate        DateTime
+  status         String           @default("pending")
+  progress       Float            @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  schedule_tasks schedule_tasks[]
+  projects       projects         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  companies      companies        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model sessions {
+  id           String   @id
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  users        users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model suppliers {
+  id                  String                @id
+  companyId           String
+  name                String
+  tradeName           String?
+  cnpj                String?
+  email               String?
+  phone               String?
+  mobile              String?
+  address             String?
+  city                String?
+  state               String?
+  zipCode             String?
+  contactPerson       String?
+  category            String?
+  notes               String?
+  status              String                @default("active")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime
+  materials           materials[]
+  quotation_responses quotation_responses[]
+  companies           companies             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions        transactions[]
+
+  @@unique([companyId, cnpj])
+  @@index([name])
+  @@index([companyId])
+}
+
+model task_budget_links {
+  id             String         @id
+  taskId         String
+  budgetItemId   String
+  percentage     Float          @default(100)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime
+  budget_items   budget_items   @relation(fields: [budgetItemId], references: [id], onDelete: Cascade)
+  schedule_tasks schedule_tasks @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, budgetItemId])
+  @@index([budgetItemId])
+  @@index([taskId])
+}
+
+model transactions {
+  id             String     @id
+  companyId      String
+  projectId      String?
+  type           String
+  category       String
+  description    String
+  value          Decimal
+  date           DateTime
+  dueDate        DateTime?
+  paymentDate    DateTime?
+  status         String     @default("pending")
+  documentNumber String?
+  notes          String?
+  supplierId     String?
+  clientId       String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime
+  clients        clients?   @relation(fields: [clientId], references: [id])
+  suppliers      suppliers? @relation(fields: [supplierId], references: [id])
+  projects       projects?  @relation(fields: [projectId], references: [id])
+  companies      companies  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, date])
+  @@index([clientId])
+  @@index([supplierId])
+  @@index([dueDate])
+  @@index([date])
+  @@index([status])
+  @@index([type])
+  @@index([projectId])
+  @@index([companyId])
+}
+
+model users {
+  id                                   String             @id
+  email                                String             @unique
+  name                                 String
+  password                             String?
+  role                                 String             @default("viewer")
+  avatar                               String?
+  companyId                            String?
+  isActive                             Boolean            @default(true)
+  lastLoginAt                          DateTime?
+  createdAt                            DateTime           @default(now())
+  updatedAt                            DateTime
+  accounts                             accounts[]
+  activities                           activities[]
+  ai_conversations                     ai_conversations[]
+  budgets                              budgets[]
+  daily_logs                           daily_logs[]
+  medicoes_medicoes_aprovadoPorTousers medicoes[]         @relation("medicoes_aprovadoPorTousers")
+  medicoes_medicoes_criadoPorTousers   medicoes[]         @relation("medicoes_criadoPorTousers")
+  projects                             projects[]
+  sessions                             sessions[]
+  companies                            companies?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([role])
+  @@index([companyId])
+  @@index([email])
+}
+
+model verification_tokens {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
