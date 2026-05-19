@@ -4,7 +4,9 @@ import bcrypt from 'bcryptjs';
 // Define DATABASE_URL explicitly
 process.env.DATABASE_URL = 'postgresql://neondb_owner:npg_tmkOFa4qvi8g@ep-tiny-hall-anp7j5un-pooler.c-6.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
+});
 
 async function main() {
   console.log('🔧 Criando empresa e usuário admin...');
