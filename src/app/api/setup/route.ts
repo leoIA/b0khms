@@ -184,11 +184,7 @@ ${mercadoPagoPublicKey ? `MERCADOPAGO_PUBLIC_KEY="${mercadoPagoPublicKey}"` : '#
     try {
       // Usar Prisma com a URL dinâmica
       const prisma = new PrismaClient({
-        datasources: {
-          db: {
-            url: databaseUrl,
-          },
-        },
+        datasourceUrl: databaseUrl,
       });
 
       // Verificar se empresa já existe
@@ -230,11 +226,7 @@ ${mercadoPagoPublicKey ? `MERCADOPAGO_PUBLIC_KEY="${mercadoPagoPublicKey}"` : '#
     
     try {
       const prisma = new PrismaClient({
-        datasources: {
-          db: {
-            url: databaseUrl,
-          },
-        },
+        datasourceUrl: databaseUrl,
       });
 
       // Verificar se usuário já existe

@@ -21,7 +21,7 @@ export async function GET() {
   if (process.env.DATABASE_URL) {
     try {
       const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
+      const prisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
 
       await prisma.$connect();
       const result = await prisma.$queryRaw`SELECT 1 as test`;
