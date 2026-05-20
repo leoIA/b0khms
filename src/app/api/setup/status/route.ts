@@ -30,7 +30,7 @@ interface SetupStatus {
 // Função para testar conexão com o banco
 async function testDatabaseConnection(): Promise<{ connected: boolean; error?: string }> {
   try {
-    const prisma = new PrismaClient();
+    const prisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
     await prisma.$connect();
     await prisma.$disconnect();
     return { connected: true };
@@ -43,7 +43,7 @@ async function testDatabaseConnection(): Promise<{ connected: boolean; error?: s
 // Função para verificar se as tabelas existem
 async function checkTablesExist(): Promise<{ exist: boolean; count: number; error?: string }> {
   try {
-    const prisma = new PrismaClient();
+    const prisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
     
     // Tentar contar registros em uma tabela principal
     // Se funcionar, as tabelas existem
@@ -61,7 +61,7 @@ async function checkTablesExist(): Promise<{ exist: boolean; count: number; erro
 // Função para verificar se existe usuário admin
 async function checkAdminUser(): Promise<{ exists: boolean; count: number }> {
   try {
-    const prisma = new PrismaClient();
+    const prisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
     
     // Verificar se existe algum usuário com role de admin
     const adminCount = await prisma.users.count({
